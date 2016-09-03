@@ -31,14 +31,9 @@ struct CollectorLast : public Collector<Result> {
   inline bool operator() (Result r) { this->result_ = r; return true; }
 };
 
-/// CollectorDefault implements the default signal handler collection behaviour.
-template<typename Result>
-struct CollectorDefault : CollectorLast<Result>
-{};
-
-/// CollectorDefault specialisation for signals with void return type.
+/// CollectorLast specialisation for signals with void return type.
 template<>
-struct CollectorDefault<void> {
+struct CollectorLast<void> {
   using CollectorResult = void;
   void                  result     ()           {}
   inline bool           operator() (void)       { return true; }
@@ -141,7 +136,7 @@ public:
  * The overhead of an unused signal is intentionally kept very low, around the size of a single pointer.
  * Note that the Signal template types is non-copyable.
  */
-template <typename SignalSignature, class Collector = Lib::CollectorDefault<typename std::function<SignalSignature>::result_type> >
+template <typename SignalSignature, class Collector = Lib::CollectorLast<typename std::function<SignalSignature>::result_type> >
 struct Signal /*final*/ :
     Lib::ProtoSignal<SignalSignature, Collector>
 {
