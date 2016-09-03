@@ -64,9 +64,9 @@ public:
   {
     accu = "";
     Simple::Signal<char (float, int, std::string)> sig1;
-    size_t id1 = sig1.connect(float_callback);
-    size_t id2 = sig1.connect([] (float, int i, std::string) { accu += string_printf ("int: %d\n", i); return 0; });
-    size_t id3 = sig1.connect([] (float, int, const std::string &s) { accu += string_printf ("string: %s\n", s.c_str()); return 0; });
+    auto id1 = sig1.connect(float_callback);
+    auto id2 = sig1.connect([] (float, int i, std::string) { accu += string_printf ("int: %d\n", i); return 0; });
+    auto id3 = sig1.connect([] (float, int, const std::string &s) { accu += string_printf ("string: %s\n", s.c_str()); return 0; });
     sig1.emit (.3, 4, "huhu");
     bool success;
     success = sig1.disconnect(id1); assert (success == true);  success = sig1.disconnect(id1); assert (success == false);

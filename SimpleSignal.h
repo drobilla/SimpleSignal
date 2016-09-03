@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <functional>
 #include <vector>
+#include <list>
 
 namespace Simple {
 
@@ -38,6 +39,17 @@ struct CollectorDefault<void> {
   inline bool           operator() (void)       { return true; }
 };
 
+template<class R, class... Args>
+struct ProtoConnection {
+  using CbFunction = std::function<R (Args...)>;
+  typename std::list<CbFunction>::iterator iter;
+public:
+  ProtoConnection(typename std::list<CbFunction>::iterator iter) : iter(iter) {}
+  ProtoConnection(const ProtoConnection&& move) : iter(move.iter) {}
+  ProtoConnection(const ProtoConnection& copy) = delete;
+  ProtoConnection& operator= (const ProtoConnection&) = delete;
+};
+
 /// ProtoSignal template specialised for the callback signature and collector.
 template<class Collector, class R, class... Args>
 class ProtoSignal<R (Args...), Collector> {
@@ -46,90 +58,30 @@ protected:
   using Result = typename CbFunction::result_type;
   using CollectorResult = typename Collector::CollectorResult;
 private:
-  /// SignalLink implements a doubly-linked ring with ref-counted nodes containing the signal handlers.
-  struct SignalLink {
-    SignalLink *next, *prev;
-    CbFunction  function;
-    int         ref_count;
-    explicit    SignalLink (const CbFunction &cbf) : next (nullptr), prev (nullptr), function (cbf), ref_count (1) {}
-    /*dtor*/   ~SignalLink ()           { assert (ref_count == 0); }
-    void        incref     ()           { ref_count += 1; assert (ref_count > 0); }
-    void        decref     ()           { ref_count -= 1; if (!ref_count) delete this; else assert (ref_count > 0); }
-    void
-    unlink ()
-    {
-      function = nullptr;
-      if (next)
-        next->prev = prev;
-      if (prev)
-        prev->next = next;
-      decref();
-      // leave intact ->next, ->prev for stale iterators
-    }
-    size_t
-    add_before (const CbFunction &cb)
-    {
-      SignalLink *link = new SignalLink (cb);
-      link->prev = prev; // link to last
-      link->next = this;
-      prev->next = link; // link from last
-      prev = link;
-      static_assert (sizeof (link) == sizeof (size_t), "sizeof size_t");
-      return size_t (link);
-    }
-    bool
-    remove_sibling (size_t id)
-    {
-      for (SignalLink *link = this->next ? this->next : this; link != this; link = link->next)
-        if (id == size_t (link))
-          {
-            link->unlink();     // deactivate and unlink sibling
-            return true;
-          }
-      return false;
-    }
-  };
-  SignalLink   *callback_ring_; // linked ring of callback nodes
+  std::list<CbFunction> callbacks_;
   /*copy-ctor*/ ProtoSignal (const ProtoSignal&) = delete;
   ProtoSignal&  operator=   (const ProtoSignal&) = delete;
-  void
-  ensure_ring ()
-  {
-    if (!callback_ring_)
-      {
-        callback_ring_ = new SignalLink (CbFunction()); // ref_count = 1
-        callback_ring_->incref(); // ref_count = 2, head of ring, can be deactivated but not removed
-        callback_ring_->next = callback_ring_; // ring head initialization
-        callback_ring_->prev = callback_ring_; // ring tail initialization
-      }
-  }
 public:
-  /// ProtoSignal constructor, connects default callback if non-nullptr.
-  ProtoSignal (const CbFunction &method) :
-    callback_ring_ (nullptr)
-  {
-    if (method != nullptr)
-      {
-        ensure_ring();
-        callback_ring_->function = method;
-      }
-  }
+  using Connection = ProtoConnection<R, Args...>;
+  /// ProtoSignal constructor
+  ProtoSignal () {}
   /// ProtoSignal destructor releases all resources associated with this signal.
-  ~ProtoSignal ()
-  {
-    if (callback_ring_)
-      {
-        while (callback_ring_->next != callback_ring_)
-          callback_ring_->next->unlink();
-        assert (callback_ring_->ref_count >= 2);
-        callback_ring_->decref();
-        callback_ring_->decref();
-      }
-  }
+  ~ProtoSignal () {}
   /// Operator to add a new function or lambda as signal handler, returns a handler connection ID.
-  size_t connect (const CbFunction &cb)      { ensure_ring(); return callback_ring_->add_before (cb); }
+  Connection connect (const CbFunction &cb)
+  {
+    callbacks_.push_back(cb);
+    return Connection(--callbacks_.end());
+  }
   /// Operator to remove a signal handler through it connection ID, returns if a handler was removed.
-  bool   disconnect (size_t connection)         { return callback_ring_ ? callback_ring_->remove_sibling (connection) : false; }
+  bool   disconnect (Connection& connection)         {
+    if (connection.iter == callbacks_.end()) {
+      return false;
+    }
+    callbacks_.erase(connection.iter);
+    connection.iter = callbacks_.end();
+    return true;
+  }
   /// invoke for callbacks with a return value
   template<class IR, class... IArgs>
   inline bool
@@ -149,47 +101,20 @@ public:
   emit (Args... args)
   {
     Collector collector;
-    if (!callback_ring_)
-      return collector.result();
-    SignalLink *link = callback_ring_;
-    link->incref();
-    do
-      {
-        if (link->function != nullptr)
-          {
-            const bool continue_emission = this->invoke (collector, link->function, args...);
-            if (!continue_emission)
-              break;
-          }
-        SignalLink *old = link;
-        link = old->next;
-        link->incref();
-        old->decref();
-      }
-    while (link != callback_ring_);
-    link->decref();
+    for (auto f = callbacks_.begin(); f != callbacks_.end();) {
+      auto next = f;
+      ++next;
+      if (!this->invoke (collector, *f, args...))
+        break;
+      f = next;
+    }
     return collector.result();
   }
   // Number of connected slots.
   int
   size ()
   {
-    int size = 0;
-    SignalLink *link = callback_ring_;
-    link->incref();
-    do
-      {
-        if (link->function != 0)
-          {
-            size++;
-          }
-        SignalLink *old = link;
-        link = old->next;
-        link->incref();
-        old->decref();
-      }
-    while (link != callback_ring_);
-    return size;
+    return callbacks_.size();
   }
 };
 
@@ -217,8 +142,6 @@ struct Signal /*final*/ :
 {
   using ProtoSignal = Lib::ProtoSignal<SignalSignature, Collector>;
   using CbFunction = typename ProtoSignal::CbFunction;
-  /// Signal constructor, supports a default callback as argument.
-  Signal (const CbFunction &method = CbFunction()) : ProtoSignal (method) {}
 };
 
 /// This function creates a std::function by binding @a object to the member function pointer @a method.
