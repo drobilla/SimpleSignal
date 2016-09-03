@@ -118,45 +118,25 @@ class TestCollectorVector {
   }
 };
 
-class TestCollectorUntil0 {
+class TestCollectorUntil {
   bool check1, check2;
-  TestCollectorUntil0() : check1 (0), check2 (0) {}
+  TestCollectorUntil() : check1 (0), check2 (0) {}
   bool handler_true  ()  { check1 = true; return true; }
   bool handler_false ()  { check2 = true; return false; }
   bool handler_abort ()  { std::abort(); }
   public:
+  static bool test(bool result) { return result != 0; }
   static void
   run ()
   {
-    TestCollectorUntil0 self;
-    Simple::Signal<bool (), Simple::CollectorUntil0<bool>> sig_until0;
-    sig_until0.connect(Simple::slot (self, &TestCollectorUntil0::handler_true));
-    sig_until0.connect(Simple::slot (self, &TestCollectorUntil0::handler_false));
-    sig_until0.connect(Simple::slot (self, &TestCollectorUntil0::handler_abort));
+    TestCollectorUntil self;
+    Simple::Signal<bool (), Simple::CollectorUntil<bool, test>> sig_until0;
+    sig_until0.connect(Simple::slot (self, &TestCollectorUntil::handler_true));
+    sig_until0.connect(Simple::slot (self, &TestCollectorUntil::handler_false));
+    sig_until0.connect(Simple::slot (self, &TestCollectorUntil::handler_abort));
     assert (!self.check1 && !self.check2);
     const bool result = sig_until0.emit();
     assert (!result && self.check1 && self.check2);
-  }
-};
-
-class TestCollectorWhile0 {
-  bool check1, check2;
-  TestCollectorWhile0() : check1 (0), check2 (0) {}
-  bool handler_0     ()  { check1 = true; return false; }
-  bool handler_1     ()  { check2 = true; return true; }
-  bool handler_abort ()  { std::abort(); }
-  public:
-  static void
-  run ()
-  {
-    TestCollectorWhile0 self;
-    Simple::Signal<bool (), Simple::CollectorWhile0<bool>> sig_while0;
-    sig_while0.connect(Simple::slot (self, &TestCollectorWhile0::handler_0));
-    sig_while0.connect(Simple::slot (self, &TestCollectorWhile0::handler_1));
-    sig_while0.connect(Simple::slot (self, &TestCollectorWhile0::handler_abort));
-    assert (!self.check1 && !self.check2);
-    const bool result = sig_while0.emit();
-    assert (result == true && self.check1 && self.check2);
   }
 };
 
@@ -226,12 +206,8 @@ main (int   argc,
   TestCollectorVector::run();
   printf ("OK\n");
 
-  printf ("Signal/CollectorUntil0: ");
-  TestCollectorUntil0::run();
-  printf ("OK\n");
-
-  printf ("Signal/CollectorWhile0: ");
-  TestCollectorWhile0::run();
+  printf ("Signal/CollectorUntil: ");
+  TestCollectorUntil::run();
   printf ("OK\n");
 
   printf ("Signal/Benchmark: Simple::Signal: ");

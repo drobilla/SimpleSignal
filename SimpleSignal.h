@@ -244,33 +244,17 @@ slot (Class *object, R (Class::*method) (Args...))
   return [object, method] (Args... args) { return (object ->* method) (args...); };
 }
 
-/// Keep signal emissions going while all handlers return !0 (true).
-template<typename Result>
-struct CollectorUntil0 {
+/// Keep signal emissions going until a given test returns false.
+template<typename Result, bool (*test)(Result)>
+struct CollectorUntil {
   using CollectorResult = Result;
-  explicit                      CollectorUntil0 ()      : result_() {}
-  const CollectorResult&        result          ()      { return result_; }
+  explicit CollectorUntil () : result_() {}
+  const CollectorResult& result() { return result_; }
   inline bool
-  operator() (Result r)
+  operator()(Result r)
   {
     result_ = r;
-    return result_ ? true : false;
-  }
-private:
-  CollectorResult result_;
-};
-
-/// Keep signal emissions going while all handlers return 0 (false).
-template<typename Result>
-struct CollectorWhile0 {
-  using CollectorResult = Result;
-  explicit                      CollectorWhile0 ()      : result_() {}
-  const CollectorResult&        result          ()      { return result_; }
-  inline bool
-  operator() (Result r)
-  {
-    result_ = r;
-    return result_ ? false : true;
+    return test(result_) ? true : false;
   }
 private:
   CollectorResult result_;
