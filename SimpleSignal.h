@@ -14,9 +14,6 @@ namespace Lib {
 /// ProtoSignal is the template implementation for callback list.
 template<typename,typename> class ProtoSignal;   // undefined
 
-/// CollectorInvocation invokes signal handlers differently depending on return type.
-template<typename,typename> struct CollectorInvocation;
-
 /// CollectorLast returns the result of the last signal handler from a signal emission.
 template<typename Result>
 struct CollectorLast {
@@ -41,29 +38,9 @@ struct CollectorDefault<void> {
   inline bool           operator() (void)       { return true; }
 };
 
-/// CollectorInvocation specialisation for regular signals.
-template<class Collector, class R, class... Args>
-struct CollectorInvocation<Collector, R (Args...)> {
-  inline bool
-  invoke (Collector &collector, const std::function<R (Args...)> &cbf, Args... args)
-  {
-    return collector (cbf (args...));
-  }
-};
-
-/// CollectorInvocation specialisation for signals with void return type.
-template<class Collector, class... Args>
-struct CollectorInvocation<Collector, void (Args...)> {
-  inline bool
-  invoke (Collector &collector, const std::function<void (Args...)> &cbf, Args... args)
-  {
-    cbf (args...); return collector();
-  }
-};
-
 /// ProtoSignal template specialised for the callback signature and collector.
 template<class Collector, class R, class... Args>
-class ProtoSignal<R (Args...), Collector> : private CollectorInvocation<Collector, R (Args...)> {
+class ProtoSignal<R (Args...), Collector> {
 protected:
   using CbFunction = std::function<R (Args...)>;
   using Result = typename CbFunction::result_type;
@@ -153,6 +130,20 @@ public:
   size_t connect (const CbFunction &cb)      { ensure_ring(); return callback_ring_->add_before (cb); }
   /// Operator to remove a signal handler through it connection ID, returns if a handler was removed.
   bool   disconnect (size_t connection)         { return callback_ring_ ? callback_ring_->remove_sibling (connection) : false; }
+  /// invoke for callbacks with a return value
+  template<class IR, class... IArgs>
+  inline bool
+  invoke (Collector &collector, const std::function<IR (IArgs...)> &cbf, Args... args)
+  {
+    return collector (cbf (args...));
+  }
+  /// invoke specialization for callbacks with void return type
+  template<class... IArgs>
+  inline bool
+  invoke (Collector &collector, const std::function<void (IArgs...)> &cbf, Args... args)
+  {
+    cbf (args...); return collector();
+  }
   /// Emit a signal, i.e. invoke all its callbacks and collect return types with the Collector.
   CollectorResult
   emit (Args... args)
