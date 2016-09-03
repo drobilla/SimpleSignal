@@ -2,13 +2,14 @@
 
 // g++ -Wall -O2 -std=gnu++11 -pthread test.cpp && ./a.out
 
-#include <string>
-#include <stdarg.h>
-#include <time.h>
-#include <sys/time.h>
-#include <stdio.h>
-#include <ctime>
+#include <assert.h>
 #include <cstdlib>
+#include <ctime>
+#include <stdarg.h>
+#include <stdio.h>
+#include <string>
+#include <sys/time.h>
+#include <time.h>
 
 static std::string string_printf (const char *format, ...) __attribute__ ((__format__ (__printf__, 1, 2)));
 static std::string
