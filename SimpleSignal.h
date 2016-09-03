@@ -15,15 +15,20 @@ namespace Lib {
 /// ProtoSignal is the template implementation for callback list.
 template<typename,typename> class ProtoSignal;   // undefined
 
+/// Base class for collectors
+template<typename Result>
+struct Collector {
+  using CollectorResult = Result;
+  explicit Collector() : result_() {}
+  const CollectorResult& result() const { return result_; }
+protected:
+  Result result_;
+};
+
 /// CollectorLast returns the result of the last signal handler from a signal emission.
 template<typename Result>
-struct CollectorLast {
-  using CollectorResult = Result;
-  explicit        CollectorLast ()              : last_() {}
-  inline bool     operator()    (Result r)      { last_ = r; return true; }
-  CollectorResult result        ()              { return last_; }
-private:
-  Result last_;
+struct CollectorLast : public Collector<Result> {
+  inline bool operator() (Result r) { this->result_ = r; return true; }
 };
 
 /// CollectorDefault implements the default signal handler collection behaviour.
@@ -160,33 +165,24 @@ slot (Class *object, R (Class::*method) (Args...))
 
 /// Keep signal emissions going until a given test returns false.
 template<typename Result, bool (*test)(Result)>
-struct CollectorUntil {
-  using CollectorResult = Result;
-  explicit CollectorUntil () : result_() {}
-  const CollectorResult& result() { return result_; }
+struct CollectorUntil : public Lib::Collector<Result> {
   inline bool
   operator()(Result r)
   {
-    result_ = r;
-    return test(result_) ? true : false;
+    this->result_ = r;
+    return test(this->result_ ) ? true : false;
   }
-private:
-  CollectorResult result_;
 };
 
 /// CollectorVector returns the result of the all signal handlers from a signal emission in a std::vector.
 template<typename Result>
-struct CollectorVector {
-  using CollectorResult = std::vector<Result>;
-  const CollectorResult&        result ()       { return result_; }
+struct CollectorVector : public Lib::Collector< std::vector<Result> >{
   inline bool
   operator() (Result r)
   {
-    result_.push_back (r);
+    this->result_.push_back (r);
     return true;
   }
-private:
-  CollectorResult result_;
 };
 
 } // Simple
