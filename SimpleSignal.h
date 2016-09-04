@@ -177,4 +177,14 @@ struct CollectorVector : public Lib::Collector< std::vector<Result> >{
   }
 };
 
+/// CollectorReduce allows custom reduction of results
+template<typename Result, typename Reducer>
+struct CollectorReduce : public Lib::Collector<Result>{
+  Reducer reducer_;
+  inline bool operator()(Result r) {
+    this->result_ = reducer_(this->result_, r);
+    return true;
+  }
+};
+
 } // Simple

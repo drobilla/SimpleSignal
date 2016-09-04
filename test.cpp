@@ -119,6 +119,24 @@ class TestCollectorVector {
   }
 };
 
+class TestCollectorReduce {
+  static int handler1 ()  { return 1; }
+  static int handler2 ()  { return 2; }
+  static int handler3 ()  { return 3; }
+  public:
+  static void
+  run ()
+  {
+    typedef Simple::CollectorReduce< int, std::plus<int> > Collector;
+    Simple::Signal<int (), Collector> sig;
+    sig.connect(handler1);
+    sig.connect(handler2);
+    sig.connect(handler3);
+    int result = sig.emit();
+    assert(result == 6);
+  }
+};
+
 class TestCollectorUntil {
   bool check1, check2;
   TestCollectorUntil() : check1 (0), check2 (0) {}
@@ -201,6 +219,10 @@ main (int   argc,
 {
   printf ("Signal/Basic Tests: ");
   BasicSignalTests::run();
+  printf ("OK\n");
+
+  printf ("Signal/CollectorReduce: ");
+  TestCollectorReduce::run();
   printf ("OK\n");
 
   printf ("Signal/CollectorVector: ");
