@@ -42,7 +42,9 @@ struct ProtoConnection {
   typename std::list<CbFunction>::iterator iter_;
 public:
   ProtoConnection(typename std::list<CbFunction>::iterator iter) : iter_(iter) {}
+  ProtoConnection() {}
   ProtoConnection(const ProtoConnection&& move) : iter_(move.iter_) {}
+  ProtoConnection& operator=(const ProtoConnection&& move) { iter_ = move.iter_; return *this; }
   ProtoConnection(const ProtoConnection& copy)       = delete;
   ProtoConnection& operator=(const ProtoConnection&) = delete;
 };
@@ -57,12 +59,13 @@ protected:
   using CollectorResult = typename Collector::CollectorResult;
 private:
   std::list<CbFunction> callbacks_;
+  typename std::list<CbFunction>::iterator iter_;
   ProtoSignal (const ProtoSignal& copy) = delete;
   ProtoSignal& operator=(const ProtoSignal& assign) = delete;
 public:
   using Connection = ProtoConnection<R, Args ...>;
 
-  ProtoSignal () {}
+  ProtoSignal() : iter_(callbacks_.end()) {}
 
   /// Add a new function as signal handler, return connection handle.
   Connection connect(const CbFunction&cb) {
@@ -75,7 +78,10 @@ public:
     if (connection.iter_ == callbacks_.end()) {
       return false;
     }
-    callbacks_.erase(connection.iter_);
+    auto next = callbacks_.erase(connection.iter_);
+    if (connection.iter_ == iter_) {
+      iter_ = next;
+    }
     connection.iter_ = callbacks_.end();
     return true;
   }
@@ -100,13 +106,17 @@ public:
   /// Emit a signal, i.e. invoke all its callbacks and collect return types with the Collector.
   CollectorResult emit(Args... args) {
     Collector collector;
-    for (auto f = callbacks_.begin(); f != callbacks_.end(); ) {
-      auto next = f;
-      ++next;
-      if (!this->invoke(collector, *f, args ...)) {
+    if (iter_ != callbacks_.end()) {
+      return collector.result(); // Recursive emit
+    }
+    for (iter_ = callbacks_.begin(); iter_ != callbacks_.end();) {
+      const auto i = iter_; // cache iterator to detect change
+      if (!this->invoke(collector, *i, args ...)) {
         break;
       }
-      f = next;
+      if (iter_ == i) {
+        ++iter_;
+      }
     }
     return collector.result();
   }

@@ -98,6 +98,27 @@ public:
 };
 std::string BasicSignalTests::accu;
 
+class TestDisconnectInCallback {
+  struct Context {
+    using Sig = Simple::Signal<int (Context&)>;
+    Sig sig;
+    Sig::Connection conn;
+  };
+  static int handler1(Context& ctx) { ctx.sig.disconnect(ctx.conn); return 1; }
+  static int handler2(Context& ctx) { return 2; }
+  static int handler3(Context& ctx) { return 3; }
+  public:
+  static void
+  run ()
+  {
+    Context ctx;
+    ctx.sig.connect(handler1);
+    ctx.conn = ctx.sig.connect(handler2);
+    ctx.sig.connect(handler3);
+    int result = ctx.sig.emit(ctx);
+    assert(result == 3);
+  }
+};
 
 class TestCollectorVector {
   static int handler1   ()  { return 1; }
@@ -231,6 +252,10 @@ main (int   argc,
 
   printf ("Signal/CollectorUntil: ");
   TestCollectorUntil::run();
+  printf ("OK\n");
+
+  printf ("Signal/DisconnectInCallback: ");
+  TestDisconnectInCallback::run();
   printf ("OK\n");
 
   printf ("Signal/Benchmark: Simple::Signal: ");
