@@ -38,21 +38,21 @@ struct CollectorLast<void> {
 
 template<class R, class ... Args>
 struct ProtoConnection {
-  using CbFunction = std::function<R(Args ...)>;
-  typename std::list<CbFunction>::iterator iter;
+  using CbFunction = std::function<R (Args ...)>;
+  typename std::list<CbFunction>::iterator iter_;
 public:
-  ProtoConnection(typename std::list<CbFunction>::iterator iter) : iter(iter) {}
-  ProtoConnection(const ProtoConnection&& move) : iter(move.iter) {}
+  ProtoConnection(typename std::list<CbFunction>::iterator iter) : iter_(iter) {}
+  ProtoConnection(const ProtoConnection&& move) : iter_(move.iter_) {}
   ProtoConnection(const ProtoConnection& copy)       = delete;
   ProtoConnection& operator=(const ProtoConnection&) = delete;
 };
 
 /// ProtoSignal template specialised for the callback signature and collector.
 template<class Collector, class R, class ... Args>
-class ProtoSignal<R(Args ...), Collector>
+class ProtoSignal<R (Args ...), Collector>
 {
 protected:
-  using CbFunction      = std::function<R(Args ...)>;
+  using CbFunction      = std::function<R (Args ...)>;
   using Result          = typename CbFunction::result_type;
   using CollectorResult = typename Collector::CollectorResult;
 private:
@@ -72,27 +72,27 @@ public:
 
   /// Remove a signal handler through its handle, return true if a handler was removed.
   bool disconnect(Connection& connection) {
-    if (connection.iter == callbacks_.end()) {
+    if (connection.iter_ == callbacks_.end()) {
       return false;
     }
-    callbacks_.erase(connection.iter);
-    connection.iter = callbacks_.end();
+    callbacks_.erase(connection.iter_);
+    connection.iter_ = callbacks_.end();
     return true;
   }
 
   /// invoke for callbacks with a return value
   template<class IR, class... IArgs>
-  inline bool invoke(Collector&                          collector,
-                     const std::function<IR(IArgs ...)>& callback,
-                     Args...                             args) {
+  inline bool invoke(Collector&                           collector,
+                     const std::function<IR (IArgs ...)>& callback,
+                     Args...                              args) {
     return collector(callback(args...));
   }
 
   /// invoke specialization for callbacks with void return type
   template<class... IArgs>
-  inline bool invoke(Collector&                            collector,
-                     const std::function<void(IArgs ...)>& callback,
-                     Args...                               args) {
+  inline bool invoke(Collector&                             collector,
+                     const std::function<void (IArgs ...)>& callback,
+                     Args...                                args) {
     callback(args...);
     return collector();
   }
